@@ -5,11 +5,21 @@ A Go CLI that periodically pulls **users** and **projects** from the Asana API
 and writes them to a local JSON file. It runs in one of two modes, chosen by a flag:
 every **5 minutes** or every **30 seconds**.
 
+The project runs locally only. Do not add Docker, CI, or deployment configuration.
+
 ## Stack (do not swap without asking)
 - Go (use the version in `go.mod`)
 - HTTP client + retries: `resty.dev/v3`
 - Env loading: `github.com/joho/godotenv`
 - Tests: standard `testing` + `net/http/httptest` (add `testify` only if I approve it)
+
+## Task list — FOLLOW IT
+The milestone plan lives in `TASKS.md`.
+- Work through the milestones **in order**, one at a time.
+- Tick the checkboxes in `TASKS.md` as tasks are completed.
+- **Stop at the end of each milestone** and wait for my review before starting the next.
+- Do not implement work from a later milestone early.
+- If a task needs to change, add, or be dropped, propose the edit to `TASKS.md` and wait for my OK.
 
 ## Skills — READ FIRST
 Project skills live in `.agents/skills/`.
@@ -92,4 +102,5 @@ Never read & commit `.env`.
 - Code builds, `gofmt`/`go vet` clean, `go test ./... -race` passes.
 - New behavior has tests.
 - Docs updated.
+- The relevant `TASKS.md` checkboxes are ticked.
 - Final message lists: what changed, how it was verified, skills used.
