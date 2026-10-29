@@ -1,9 +1,9 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 5 adds a concurrent extraction run using the Asana client and atomic storage.
+Milestone 6 adds scheduling and cancellation to the concurrent extraction run.
 The CLI currently exits successfully after configuration validation;
-CLI wiring and scheduling will be implemented in later milestones.
+CLI wiring will be implemented in Milestone 7.
 
 Requires Go 1.27.3. Make is optional.
 
@@ -190,5 +190,34 @@ does not cancel a successful write.
 
 Start and completion logs include the run duration, user/project counts and
 success status. They omit configuration, entity records and raw error details.
-Errors are returned for the caller to handle and log. No scheduler, signal
-handling or CLI extraction wiring is implemented at this milestone.
+Errors are returned for the caller to handle and log. The CLI is not yet wired
+to run extractions or handle shutdown signals.
+
+## Scheduler
+
+`extractor.NewScheduler(runner, tickerFactory, interval, logger)` creates a
+scheduler for exactly `5*time.Minute` or `30*time.Second`. `*Extractor` implements
+the `Runner` interface. `extractor.RealClock{}` implements both the extraction
+clock and the scheduler's `TickerFactory`; tests supply manual tickers.
+
+`Scheduler.Run(ctx)` starts one extraction immediately and then starts a new
+one for each idle tick. Ticks received while a run is active are skipped and
+logged. Queued ticks from an active run are discarded at completion, so the
+scheduler does not replay missed work. Runs never overlap within a scheduling
+loop. Invoke one loop at a time per scheduler.
+
+A run error is logged and the loop continues. A typed HTTP 401 produces a clear
+invalid-or-revoked-PAT message. Other typed HTTP errors log their status code;
+unknown errors produce a fixed message so arbitrary error text cannot expose
+credentials.
+
+Canceling the context prevents further starts and cancels the active run.
+The scheduler waits for that run to finish or abort, stops its ticker, and
+returns nil for normal shutdown. Runners must honor cancellation or finish on
+their own; no forced shutdown timeout is imposed. Invalid ticker implementations
+return a scheduler error after canceling and joining any active run.
+
+Scheduler tests use channel barriers and `testing/synctest` to verify both modes,
+error recovery, tick skipping and cleanup without real sleeps. Signal handling
+and CLI startup remain reserved for Milestone 7; `make run` still validates
+configuration only.
