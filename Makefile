@@ -11,4 +11,4 @@ lint:
 	go vet ./...
 
 run:
-	go run ./cmd/extractor
+	go run ./cmd/extractor $(ARGS)
