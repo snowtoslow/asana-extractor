@@ -100,10 +100,10 @@ Assumptions: one workspace, two separate output files (`users.json` and `project
 ## Milestone 5: Extraction run
 
 **Tasks**
-- [ ] `internal/extractor`: `Run(ctx)` fetches users and projects concurrently (`errgroup`) and then calls the writer once to publish the two separate files.
-- [ ] If either fetch fails, write nothing, keep both previous files and return a wrapped error.
-- [ ] Log run start, duration and counts using `log/slog`.
-- [ ] Inject the client, the writer and a clock via small interfaces.
+- [x] `internal/extractor`: `Run(ctx)` fetches users and projects concurrently (`errgroup`) and then calls the writer once to publish the two separate files.
+- [x] If either fetch fails, write nothing, keep both previous files and return a wrapped error.
+- [x] Log run start, duration and counts using `log/slog`.
+- [x] Inject the client, the writer and a clock via small interfaces.
 
 **Tests** (with fakes)
 - Success writes each list to its own file with the same timestamp.

@@ -1,2 +1,2 @@
-// Package extractor will coordinate extraction runs and scheduling.
+// Package extractor coordinates complete extraction runs.
 package extractor
