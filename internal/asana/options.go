@@ -3,6 +3,7 @@ package asana
 import (
 	"errors"
 	"log/slog"
+	"net/http"
 	"time"
 )
 
@@ -10,10 +11,11 @@ import (
 type Option func(*clientOptions) error
 
 type clientOptions struct {
-	retries int
-	wait    time.Duration
-	maxWait time.Duration
-	logger  *slog.Logger
+	retries   int
+	wait      time.Duration
+	maxWait   time.Duration
+	logger    *slog.Logger
+	transport http.RoundTripper
 }
 
 // WithRetries sets retries after the initial attempt and the exponential backoff
@@ -36,6 +38,18 @@ func WithLogger(logger *slog.Logger) Option {
 			return errors.New("asana: logger must not be nil")
 		}
 		o.logger = logger
+		return nil
+	}
+}
+
+// WithTransport supplies the HTTP transport without changing the constructor's
+// configuration arguments. The caller owns and configures the transport.
+func WithTransport(transport http.RoundTripper) Option {
+	return func(o *clientOptions) error {
+		if transport == nil {
+			return errors.New("asana: transport must not be nil")
+		}
+		o.transport = transport
 		return nil
 	}
 }

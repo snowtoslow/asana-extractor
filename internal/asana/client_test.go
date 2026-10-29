@@ -89,7 +89,7 @@ func TestClientLists(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					var calls atomic.Int32
-					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						index := int(calls.Add(1)) - 1
 						if r.Method != http.MethodGet || r.URL.Path != "/api/1.0/"+resource.name {
 							t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -124,7 +124,6 @@ func TestClientLists(t *testing.T) {
 							t.Errorf("write fake response: %v", err)
 						}
 					}))
-					t.Cleanup(server.Close)
 					client := newTestClient(t, server)
 					got, err := listJSON(t.Context(), client, resource.name)
 					if err != nil {
@@ -150,12 +149,11 @@ func TestClientContextCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			aborted := make(chan struct{})
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				cancel()
 				<-r.Context().Done()
 				close(aborted)
 			}))
-			t.Cleanup(server.Close)
 			client := newTestClient(t, server)
 			_, err := listJSON(ctx, client, resource)
 			if !errors.Is(err, context.Canceled) {
@@ -216,10 +214,11 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func newTestClient(t *testing.T, server *httptest.Server) *Client {
 	t.Helper()
+	transport := server.Client().Transport
 	cfg := config.Config{
 		PAT: "synthetic-pat", WorkspaceGID: "workspace-123", BaseURL: server.URL + "/api/1.0/",
 	}
-	client, err := New(cfg, 0)
+	client, err := New(cfg, 0, WithTransport(transport))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,4 +251,39 @@ func listJSON(ctx context.Context, client *Client, resource string) (string, err
 		return "", err
 	}
 	return string(data), nil
+}
+
+func TestClientPreCanceledContext(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("pre-canceled request reached transport")
+	}))
+	client := newTestClient(t, server)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, entity := range []string{"users", "projects"} {
+		_, err := listJSON(ctx, client, entity)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want canceled", err)
+		}
+	}
+}
+
+func TestClientDoesNotFollowRedirects(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Location", "http://untrusted.test/receive-token")
+		w.WriteHeader(http.StatusFound)
+	}))
+	client := newTestClient(t, server)
+	_, err := client.ListUsers(t.Context())
+	var statusError *HTTPError
+	if !errors.As(err, &statusError) || statusError.StatusCode != http.StatusFound {
+		t.Fatalf("redirect was not returned as a status error: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("redirect followed or retried: %d calls", calls)
+	}
 }

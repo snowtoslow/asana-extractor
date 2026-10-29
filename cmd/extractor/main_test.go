@@ -80,6 +80,7 @@ func TestRunOnceWiring(t *testing.T) {
 		{name: "client initialization failure", initError: errors.New("synthetic-test-pat"), wantCode: 1, wantMessage: "initialize asana client failed"},
 		{name: "unauthorized", fetchError: &asana.HTTPError{StatusCode: 401}, wantCode: 1, wantMessage: "invalid or revoked personal access token"},
 		{name: "unknown fetch failure", fetchError: errors.New("synthetic-test-pat"), wantCode: 1, wantMessage: "extraction failed"},
+		{name: "not found", fetchError: &asana.HTTPError{StatusCode: 404}, wantCode: 1, wantMessage: "http_status=404"},
 		{name: "writer failure", writeError: errors.New("synthetic-test-pat"), wantCode: 1, wantWrites: 1, wantMessage: "extraction failed"},
 		{name: "close failure", closeError: errors.New("synthetic-test-pat"), wantCode: 1, wantWrites: 1, wantMessage: "close asana client failed"},
 	}
@@ -289,5 +290,39 @@ func assertMaskedStartup(t *testing.T, logs string) {
 	}
 	if !strings.Contains(logs, "extractor starting") || !strings.Contains(logs, "[REDACTED]") {
 		t.Fatal("masked startup configuration missing")
+	}
+}
+
+func TestRunDependencyFailures(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"writer", "clock", "ticker"} {
+		t.Run(failure, func(t *testing.T) {
+			t.Parallel()
+			client := &appTestClient{}
+			writer := &appTestWriter{}
+			clock := &appTestClock{ticker: &appTestTicker{ticks: make(chan time.Time)}}
+			deps := testDependencies(client, writer, clock)
+			args := []string{"--once"}
+			switch failure {
+			case "writer":
+				deps.newWriter = func(string) extractor.Writer { return nil }
+			case "clock":
+				deps.clock = nil
+			case "ticker":
+				clock.ticker.ticks = nil
+				args = []string{}
+			}
+			var output bytes.Buffer
+			code := runWith(
+				t.Context(),
+				args,
+				&output,
+				deps,
+			)
+			if code != 1 || client.closed != 1 || writer.calls != 0 {
+				t.Fatalf("dependency failure: exit=%d, closed=%d, writes=%d", code, client.closed, writer.calls)
+			}
+			assertMaskedStartup(t, output.String())
+		})
 	}
 }

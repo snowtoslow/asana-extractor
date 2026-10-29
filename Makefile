@@ -4,7 +4,7 @@ build:
 	go build -o bin/extractor ./cmd/extractor
 
 test:
-	go test ./... -race
+	go test ./... -race -tags=integration
 
 lint:
 	gofmt -w cmd internal

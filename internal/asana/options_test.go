@@ -18,6 +18,7 @@ func TestNewOptions(t *testing.T) {
 		{name: "max less than wait", option: WithRetries(1, time.Second, 0)},
 		{name: "negative max", option: WithRetries(1, 0, -time.Second)},
 		{name: "nil logger", option: WithLogger(nil)},
+		{name: "nil transport", option: WithTransport(nil)},
 		{name: "nil option", option: nil},
 	}
 	for _, tt := range tests {

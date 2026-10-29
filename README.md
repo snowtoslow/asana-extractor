@@ -57,7 +57,7 @@ extraction did not complete successfully.
 ```sh
 make build  # bin/extractor
 make lint   # gofmt and go vet
-make test   # go test ./... -race
+make test   # unit + integration tests with race detection
 make run    # immediate extraction, then every 5 minutes
 make run ARGS="--interval=30s"
 make run ARGS="--once --output=data/custom"
@@ -246,3 +246,28 @@ make build
 Automated wiring tests cover single-run outcomes, both interval mappings,
 continued scheduling after a 401, output-directory overrides, masked startup
 logs, cancellation, and client cleanup using injected dependencies.
+
+## Test hardening
+
+`make test` runs unit and integration tests with race detection. Integration
+cases use the `integration` build tag:
+
+```sh
+go test ./... -race -cover
+go test ./... -race -tags=integration -cover -count=5
+```
+
+All HTTP fixtures use in-memory `httptest.NewTestServer` transports; tests do
+not open network sockets or contact Asana. Timed behavior uses manual tickers
+or `testing/synctest`, with no real clock sleeps. Environment-loading tests use
+isolated temporary directories and synthetic tokens, never the repository's `.env`.
+
+The end-to-end cases cover `.env` loading and overrides, separate output files,
+empty data, 1,250 records per entity across 13 pages, malformed later pages,
+401 responses, request timeouts, and preservation of previous files after errors.
+The Asana client accepts `WithTransport(http.RoundTripper)` for isolated tests
+without changing its default transport or configuration arguments.
+
+The Milestone 8 five-pass race/coverage run passed with 93.8% total statement
+coverage. The thin OS-signal/exit wrapper remains outside in-process coverage;
+context cancellation and scheduler cleanup are covered by deterministic tests.
