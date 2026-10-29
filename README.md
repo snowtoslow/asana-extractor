@@ -1,9 +1,9 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 4 adds atomic JSON storage alongside the paginated Asana client.
+Milestone 5 adds a concurrent extraction run using the Asana client and atomic storage.
 The CLI currently exits successfully after configuration validation;
-client/writer wiring, extraction runs, and scheduling will be implemented in later milestones.
+CLI wiring and scheduling will be implemented in later milestones.
 
 Requires Go 1.27.3. Make is optional.
 
@@ -169,3 +169,26 @@ unpublished temporary files. Each destination remains a complete old or new file
 
 The storage layer accepts no authentication configuration. It is not yet wired
 into the CLI; `make run` still performs configuration validation only.
+
+## One extraction run
+
+`internal/extractor` provides `New(client, writer, clock, logger)` and `Run(ctx)`.
+The client, writer and clock use small interfaces declared in the extractor
+package; the logger is an injected `*slog.Logger`. The clock implements
+`Now() time.Time`, making timestamps and durations deterministic in tests.
+
+Each run fetches users and projects concurrently with `errgroup.WithContext`
+from `golang.org/x/sync`. A failed fetch cancels the sibling request, waits for
+both fetches to exit and returns a wrapped error without calling the writer.
+Both previous output files therefore remain untouched after API failures.
+
+After both fetches succeed, the extractor records fetch completion in UTC and
+passes both lists and that timestamp to the writer in one call. Storage retains
+the documented per-file atomicity; publication of the pair is not transactional.
+The writer receives the original run context, so the errgroup's normal shutdown
+does not cancel a successful write.
+
+Start and completion logs include the run duration, user/project counts and
+success status. They omit configuration, entity records and raw error details.
+Errors are returned for the caller to handle and log. No scheduler, signal
+handling or CLI extraction wiring is implemented at this milestone.
