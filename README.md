@@ -1,9 +1,9 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 1 implements configuration and CLI validation. Valid configuration
-currently exits successfully with a message; fetching, file writing, and
-scheduling will be implemented in later milestones.
+Milestone 2 adds a paginated Asana client alongside configuration and CLI
+validation. The CLI currently exits successfully after configuration validation;
+client wiring, file writing, and scheduling will be implemented in later milestones.
 
 Requires Go 1.27.3. Make is optional.
 
@@ -59,3 +59,29 @@ make run    # configuration validation only at this milestone
 ```
 
 Tests use temporary files and synthetic credentials. They do not call Asana.
+
+## Asana client
+
+`internal/asana` provides `ListUsers(ctx)` and `ListProjects(ctx)` for one
+workspace, using the configured base URL and a Bearer PAT on each request.
+It stores only these fields:
+
+| Resource | Fields |
+| --- | --- |
+| User | `gid`, `name`, `email` |
+| Project | `gid`, `name`, `archived` |
+
+The client requests `limit=100`, the workspace GID, and the stored fields via
+`opt_fields`. It follows `next_page.offset` until absent or empty, keeping the
+original endpoint and base URL. See Asana's
+[users endpoint](https://developers.asana.com/go/reference/getusers) and
+[projects endpoint](https://developers.asana.com/reference/getprojects).
+
+Construct the client with a `config.Config` and a request timeout. Configuration
+is checked by `Config.ValidateAsana()` in `internal/config`.
+A zero timeout selects 30 seconds; negative timeouts are rejected.
+Caller cancellation propagates to each request. Redirects are not followed.
+Call `Close()` when finished. Timeout configuration is currently a Go constructor parameter,
+not a new environment variable or CLI flag.
+
+Retries and specialized API-error handling are reserved for Milestone 3.

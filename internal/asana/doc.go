@@ -1,2 +1,2 @@
-// Package asana will provide the Asana API client.
+// Package asana provides the Asana API client.
 package asana
