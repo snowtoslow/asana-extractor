@@ -21,7 +21,9 @@ func retryable(response *resty.Response, err error) bool {
 	}
 	if response != nil && response.StatusCode() != 0 {
 		status := response.StatusCode()
-		return status == http.StatusTooManyRequests || (status >= 500 && status <= 599)
+		if status >= 400 {
+			return status == http.StatusTooManyRequests || (status >= http.StatusInternalServerError && status <= 599)
+		}
 	}
 	var networkError net.Error
 	if urlError, ok := errors.AsType[*url.Error](err); ok {

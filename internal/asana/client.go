@@ -21,7 +21,8 @@ type Client struct {
 	workspaceGID string
 }
 
-// New configures a private Resty client. A zero timeout selects 30 seconds.
+// New configures a private Resty client from configuration validated by the caller.
+// A zero timeout selects 30 seconds. Options can override retry and logging defaults.
 func New(cfg config.Config, timeout time.Duration, options ...Option) (*Client, error) {
 	if timeout < 0 {
 		return nil, errors.New("asana: request timeout must not be negative")

@@ -1,8 +1,8 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 2 adds a paginated Asana client alongside configuration and CLI
-validation. The CLI currently exits successfully after configuration validation;
+Milestone 3 adds retries and safe API errors to the paginated Asana client.
+The CLI currently exits successfully after configuration validation;
 client wiring, file writing, and scheduling will be implemented in later milestones.
 
 Requires Go 1.27.3. Make is optional.
@@ -59,6 +59,8 @@ make run    # configuration validation only at this milestone
 ```
 
 Tests use temporary files and synthetic credentials. They do not call Asana.
+Retry timing tests use an in-memory `httptest.Server` and `testing/synctest`:
+backoff and `Retry-After` delays advance synthetic time without real sleeps.
 
 ## Asana client
 
@@ -77,11 +79,42 @@ original endpoint and base URL. See Asana's
 [users endpoint](https://developers.asana.com/go/reference/getusers) and
 [projects endpoint](https://developers.asana.com/reference/getprojects).
 
-Construct the client with a `config.Config` and a request timeout. Configuration
-is checked by `Config.ValidateAsana()` in `internal/config`.
+Construct the client with a validated `config.Config` and a request timeout.
+The caller is responsible for configuration validation before initialization.
 A zero timeout selects 30 seconds; negative timeouts are rejected.
 Caller cancellation propagates to each request. Redirects are not followed.
 Call `Close()` when finished. Timeout configuration is currently a Go constructor parameter,
 not a new environment variable or CLI flag.
 
-Retries and specialized API-error handling are reserved for Milestone 3.
+### Retries and errors
+
+Each page request allows three retries after the initial attempt. Network
+failures, HTTP 429, and all HTTP 5xx statuses are retryable. Other HTTP 4xx
+statuses are returned immediately. Cancellation stops requests and retry waits.
+
+Backoff defaults to 1s, 2s, 4s, with a 30s cap if more retries are configured.
+For 429 and 503, a valid `Retry-After` (seconds or HTTP date) takes precedence,
+even when longer than the cap. Missing or invalid headers use normal backoff.
+
+Optional constructor settings keep existing calls valid:
+
+```go
+client, err := asana.New(cfg, 0,
+    asana.WithRetries(3, time.Second, 30*time.Second),
+    asana.WithLogger(logger),
+)
+```
+
+`WithRetries(0, 0, 0)` disables retries; positive counts with zero waits permit
+immediate retries. These are Go constructor options, not new env vars or flags.
+
+Unsuccessful responses return a wrapped `*asana.HTTPError`; use `errors.As` to
+inspect `StatusCode`. A 401 error states that the PAT is invalid or revoked.
+The client returns errors for its caller to log rather than logging them twice.
+Scheduler continuation is implemented in a later milestone.
+
+Response bodies and raw transport/decoder errors are omitted from diagnostics
+because they can echo credentials. Known causes still match with `errors.Is`,
+including cancellation and deadlines. Raw causes are not exposed by `Unwrap`.
+Resty wire/debug dumps are suppressed, and its warnings/errors use fixed
+structured messages. No PAT is included in those diagnostics.

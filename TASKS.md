@@ -62,11 +62,11 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 3: Retries and error handling
 
 **Tasks**
-- [ ] Configure resty retries with backoff for network errors, 429 (honouring `Retry-After`) and 5xx.
-- [ ] Never retry other 4xx; treat 401 as an invalid or revoked PAT with a clear, token-free error.
-- [ ] Make the retry count and wait times configurable so tests run fast.
-- [ ] Wrap errors with `%w` and add typed or sentinel errors where useful (e.g. `ErrUnauthorized`).
-- [ ] Ensure the PAT never appears in errors or logs, including resty debug output.
+- [x] Configure resty retries with backoff for network errors, 429 (honouring `Retry-After`) and 5xx.
+- [x] Never retry other 4xx; treat 401 as an invalid or revoked PAT with a clear, token-free error.
+- [x] Make the retry count and wait times configurable so tests run fast.
+- [x] Wrap errors with `%w` and add typed or sentinel errors where useful (e.g. `ErrUnauthorized`).
+- [x] Ensure the PAT never appears in errors or logs, including resty debug output.
 
 **Tests**
 - Retry then success on 500, and on 429 with `Retry-After`.
