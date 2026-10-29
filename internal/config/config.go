@@ -16,7 +16,7 @@ type Config struct {
 	PAT          string `json:"-"`
 	WorkspaceGID string `json:"workspace_gid"`
 	BaseURL      string `json:"base_url"`
-	OutputPath   string `json:"output_path"`
+	OutputPath   string `json:"output_path"` // Directory containing users.json and projects.json.
 }
 
 // Load reads .env if present. Existing environment variables take precedence,
@@ -52,7 +52,7 @@ func load(path string, lookupEnv func(string) (string, bool)) (Config, error) {
 		PAT:          get("ASANA_PAT", ""),
 		WorkspaceGID: get("ASANA_WORKSPACE_GID", ""),
 		BaseURL:      get("ASANA_BASE_URL", "https://app.asana.com/api/1.0"),
-		OutputPath:   get("OUTPUT_PATH", "data/asana.json"),
+		OutputPath:   get("OUTPUT_PATH", "data"),
 	}
 	if strings.TrimSpace(cfg.PAT) == "" {
 		return Config{}, errors.New("ASANA_PAT is required; set a personal access token in the environment or .env")

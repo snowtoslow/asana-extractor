@@ -1,9 +1,9 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 3 adds retries and safe API errors to the paginated Asana client.
+Milestone 4 adds atomic JSON storage alongside the paginated Asana client.
 The CLI currently exits successfully after configuration validation;
-client wiring, file writing, and scheduling will be implemented in later milestones.
+client/writer wiring, extraction runs, and scheduling will be implemented in later milestones.
 
 Requires Go 1.27.3. Make is optional.
 
@@ -25,7 +25,7 @@ git. Never commit or share it.
 | `ASANA_PAT` | Yes | None |
 | `ASANA_WORKSPACE_GID` | Yes | None |
 | `ASANA_BASE_URL` | No | `https://app.asana.com/api/1.0` |
-| `OUTPUT_PATH` | No | `data/asana.json` |
+| `OUTPUT_PATH` (directory) | No | `data/` |
 
 The CLI reads `.env` from its current directory if present. Existing environment
 variables take precedence, including explicitly empty values. Empty or
@@ -38,12 +38,13 @@ mask the PAT.
 ```sh
 go run ./cmd/extractor --help
 go run ./cmd/extractor --interval=5m
-go run ./cmd/extractor --interval=30s --once --output=data/custom.json
+go run ./cmd/extractor --interval=30s --once --output=data/custom
 ```
 
 - `--interval`: accepts exactly `5m` (default) or `30s`.
 - `--once`: records the request for a single run; execution comes later.
-- `--output`: a non-empty value overrides `OUTPUT_PATH` for this invocation.
+- `--output`: a non-empty value overrides the `OUTPUT_PATH` directory for this invocation.
+  The directory contains two separate files, `users.json` and `projects.json`.
 
 Unknown flags, invalid intervals, and positional arguments produce a usage
 error. The binary exits with code 2 for usage errors, 1 for configuration errors,
@@ -118,3 +119,53 @@ because they can echo credentials. Known causes still match with `errors.Is`,
 including cancellation and deadlines. Raw causes are not exposed by `Unwrap`.
 Resty wire/debug dumps are suppressed, and its warnings/errors use fixed
 structured messages. No PAT is included in those diagnostics.
+
+## JSON storage
+
+**Users and projects are stored in two different files:** `users.json` and
+`projects.json`. `OUTPUT_PATH` and `--output` select their directory, defaulting
+to `data/`. An existing single-file setting such as `data/asana.json` must be
+changed to an output directory such as `data/`; there is no automatic migration
+or deletion of old output files.
+
+`storage.New(directory).Write(ctx, snapshot)` prepares both indented JSON
+documents. The caller supplies `FetchedAt`, which is serialized in UTC using
+RFC 3339 with fractional seconds when present. Both files share that timestamp.
+
+`users.json`:
+
+```json
+{
+  "fetched_at": "2026-10-29T14:30:00Z",
+  "users": []
+}
+```
+
+`projects.json`:
+
+```json
+{
+  "fetched_at": "2026-10-29T14:30:00Z",
+  "projects": []
+}
+```
+
+Each document contains only its own entity list and timestamp. Nil and empty
+lists produce `[]`. Missing directories are created with owner-only permissions
+(`0700`); files use owner-only permissions (`0600`). Existing directory
+permissions are left as configured.
+
+Both unique temporary files are written, synced and closed in the output
+directory before publication starts. The writer then atomically replaces
+`users.json`, followed by `projects.json`, using `os.Rename` for each. Encoding
+or staging failures preserve both previous files. All unpublished temporary
+files are removed on returned failures; cleanup errors are reported too.
+Cancellation is checked before preparation and before each publication.
+
+**Atomicity applies to each file, not the pair.** A failure or forced process
+termination between renames can leave complete files from different runs.
+Compare `fetched_at` to detect a mixed pair. Forced termination can also leave
+unpublished temporary files. Each destination remains a complete old or new file.
+
+The storage layer accepts no authentication configuration. It is not yet wired
+into the CLI; `make run` still performs configuration validation only.

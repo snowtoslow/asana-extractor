@@ -2,7 +2,8 @@
 
 ## Project
 A Go CLI that periodically pulls **users** and **projects** from the Asana API
-and writes them to a local JSON file. It runs in one of two modes, chosen by a flag:
+and writes them to two separate local JSON files, `users.json` and `projects.json`.
+It runs in one of two modes, chosen by a flag:
 every **5 minutes** or every **30 seconds**.
 
 The project runs locally only. Do not add Docker, CI, or deployment configuration.
@@ -39,7 +40,7 @@ Before starting ANY task:
   (My apps → Personal access tokens) and supplied via the `ASANA_PAT` env var.
 - Send it on every request as `Authorization: Bearer $ASANA_PAT`.
 - Fail fast at startup with a clear error if `ASANA_PAT` is empty.
-- Never log, print, or write the PAT to the output file, and never commit it.
+- Never log, print, or write the PAT to either output file, and never commit it.
   Mask it in any error or debug output.
 - A 401 response means an invalid or revoked PAT: do not retry, log a clear
   message (without the token), and keep the scheduler running.
@@ -55,9 +56,17 @@ Before starting ANY task:
 ## Behavior requirements
 - Flag `--interval` accepts only `5m` or `30s`; reject anything else with a usage error.
 - Run once immediately on start, then on every tick. Runs must never overlap.
-- Output is a single JSON file: `{ "fetched_at", "users": [], "projects": [] }`.
-- Write atomically (temp file in same dir + rename). A failed run must not
-  corrupt or truncate the previous output.
+- Users and projects must reside in **two different files**, named `users.json`
+  and `projects.json`, in the configured output directory.
+- `users.json` contains `{ "fetched_at": "...", "users": [] }`;
+  `projects.json` contains `{ "fetched_at": "...", "projects": [] }`.
+- Use the same `fetched_at` timestamp for both files from one extraction.
+- Prepare, sync and close both temporary files before publishing either file.
+  Replace each atomically (temp file in the same directory + rename), publishing
+  `users.json` followed by `projects.json`. API or staging failures leave both
+  previous files untouched. Each file must always remain complete; the pair is
+  not an atomic transaction. A publication failure or interruption between the
+  renames may leave files with different timestamps.
 - A failed run is logged and the loop continues. Never crash the scheduler on API errors.
 - Graceful shutdown on SIGINT/SIGTERM via `context`.
 
@@ -73,6 +82,8 @@ Before starting ANY task:
 ## Configuration
 Env vars (loaded from `.env` if present; real env vars take precedence):
 `ASANA_PAT`, `ASANA_WORKSPACE_GID`, `ASANA_BASE_URL`, `OUTPUT_PATH`.
+`OUTPUT_PATH` is an output **directory**, defaulting to `data/`, containing
+`users.json` and `projects.json`. The `--output` flag overrides this directory.
 Keep `.env.example` up to date (with a placeholder PAT, never a real one). 
 Never read & commit `.env`.
 

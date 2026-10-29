@@ -19,7 +19,7 @@ func parseFlags(args []string, output io.Writer) (options, error) {
 	flags.SetOutput(output)
 	interval := flags.String("interval", "5m", "extraction interval: 5m or 30s")
 	isOnce := flags.Bool("once", false, "run one extraction and exit")
-	path := flags.String("output", "", "output file (overrides OUTPUT_PATH)")
+	path := flags.String("output", "", "output directory for users.json and projects.json (overrides OUTPUT_PATH)")
 	if err := flags.Parse(args); err != nil {
 		return options{}, fmt.Errorf("parse flags: %w", err)
 	}
