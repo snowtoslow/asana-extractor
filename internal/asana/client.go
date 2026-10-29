@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,13 +22,25 @@ type Client struct {
 }
 
 // New configures a private Resty client. A zero timeout selects 30 seconds.
-func New(cfg config.Config, timeout time.Duration) (*Client, error) {
+func New(cfg config.Config, timeout time.Duration, options ...Option) (*Client, error) {
 	if timeout < 0 {
 		return nil, errors.New("asana: request timeout must not be negative")
 	}
 
 	if timeout == 0 {
 		timeout = 30 * time.Second
+	}
+	settings := clientOptions{
+		retries: 3, wait: time.Second, maxWait: 30 * time.Second,
+		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+	}
+	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("asana: client option must not be nil")
+		}
+		if err := option(&settings); err != nil {
+			return nil, fmt.Errorf("configure asana client: %w", err)
+		}
 	}
 	transportClient := new(http.Client)
 	// Keep the PAT on the configured endpoint; pagination uses offsets only.
@@ -37,7 +51,13 @@ func New(cfg config.Config, timeout time.Duration) (*Client, error) {
 		SetBaseURL(strings.TrimRight(cfg.BaseURL, "/")).
 		SetAuthToken(cfg.PAT).
 		SetHeader("Accept", "application/json").
-		SetTimeout(timeout)
+		SetTimeout(timeout).
+		SetLogger(httpLogger{logger: settings.logger}).
+		SetDebug(false).
+		SetRetryCount(settings.retries).
+		SetRetryDefaultConditions(false).
+		AddRetryConditions(retryable).
+		SetRetryDelayStrategy(retryDelay(settings.wait, settings.maxWait))
 
 	return &Client{http: restyHttpClient, workspaceGID: cfg.WorkspaceGID}, nil
 }
@@ -84,7 +104,7 @@ func list[T User | Project](ctx context.Context, c *Client, path, fields string)
 	offset := ""
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("list %s: %w", strings.TrimPrefix(path, "/"), err)
+			return nil, fmt.Errorf("list %s: %w", strings.TrimPrefix(path, "/"), &requestError{cause: err})
 		}
 		result := page[T]{Data: []T{}}
 		request := c.http.R().SetContext(ctx).
@@ -98,11 +118,11 @@ func list[T User | Project](ctx context.Context, c *Client, path, fields string)
 		}
 		response, err := request.Get(path)
 		if err != nil {
-			return nil, fmt.Errorf("list %s: %w", strings.TrimPrefix(path, "/"), err)
+			return nil, fmt.Errorf("list %s: %w", strings.TrimPrefix(path, "/"), &requestError{cause: err})
 		}
 		if !response.IsStatusSuccess() {
-			return nil, fmt.Errorf("list %s: unexpected http status %d",
-				strings.TrimPrefix(path, "/"), response.StatusCode())
+			return nil, fmt.Errorf("list %s: %w",
+				strings.TrimPrefix(path, "/"), &HTTPError{StatusCode: response.StatusCode()})
 		}
 		items = append(items, result.Data...)
 		if result.NextPage == nil || result.NextPage.Offset == "" {

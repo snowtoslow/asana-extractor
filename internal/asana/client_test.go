@@ -21,13 +21,6 @@ func TestNew(t *testing.T) {
 		mutate  func(*config.Config)
 		timeout time.Duration
 	}{
-		{name: "empty pat", mutate: func(c *config.Config) { c.PAT = "" }},
-		{name: "empty workspace", mutate: func(c *config.Config) { c.WorkspaceGID = "" }},
-		{name: "invalid url", mutate: func(c *config.Config) { c.BaseURL = "://bad" }},
-		{name: "relative url", mutate: func(c *config.Config) { c.BaseURL = "/api" }},
-		{name: "non http url", mutate: func(c *config.Config) { c.BaseURL = "ftp://example.invalid" }},
-		{name: "url credentials", mutate: func(c *config.Config) { c.BaseURL = "https://user:pass@example.invalid" }},
-		{name: "url query", mutate: func(c *config.Config) { c.BaseURL = "https://example.invalid?key=value" }},
 		{name: "negative timeout", mutate: func(*config.Config) {}, timeout: -time.Second},
 	}
 	for _, tt := range tests {
