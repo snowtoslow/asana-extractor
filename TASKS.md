@@ -14,11 +14,11 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 0: Bootstrap
 
 **Tasks**
-- [ ] Review `.agents/skills/` and list which skills apply to which milestones.
-- [ ] Run `go mod init` and add `resty.dev/v3` and `github.com/joho/godotenv`.
-- [ ] Create the folder layout from AGENTS.md with placeholder `doc.go` files.
-- [ ] Add `.gitignore` (`.env`, `data/`, binaries) and `.env.example` with placeholders only.
-- [ ] Add a `Makefile` with `build`, `test`, `lint` (`gofmt` + `go vet`) and `run` targets.
+- [x] Review `.agents/skills/` and list which skills apply to which milestones.
+- [x] Complete the existing module setup with `github.com/snowtoslow/asana-extractor` and Go 1.27.3, and add `resty.dev/v3` and `github.com/joho/godotenv`.
+- [x] Create the folder layout from AGENTS.md with placeholder `doc.go` files.
+- [x] Add `.gitignore` (`.env`, `data/`, binaries) and `.env.example` with placeholders only.
+- [x] Add a `Makefile` with `build`, `test`, `lint` (`gofmt` + `go vet`) and `run` targets.
 
 **Done when:** `go build ./...` and `make test` succeed on the empty skeleton.
 
