@@ -136,16 +136,18 @@ Assumptions: one workspace, two separate output files (`users.json` and `project
 ## Milestone 7: Wire everything in `main`
 
 **Tasks**
-- [ ] Parse flags and load config, then build the client, writer, extractor and scheduler.
-- [ ] Set up `signal.NotifyContext` for SIGINT and SIGTERM.
-- [ ] `--once` runs a single extraction and exits with code 0 on success and non-zero on failure.
-- [ ] Log the startup config with the PAT masked.
-- [ ] Use sensible exit codes.
+- [x] Parse flags and load config, then build the client, writer, extractor and scheduler.
+- [x] Set up `signal.NotifyContext` for SIGINT and SIGTERM.
+- [x] `--once` runs a single extraction and exits with code 0 on success and non-zero on failure.
+- [x] Log the startup config with the PAT masked.
+- [x] Use sensible exit codes.
 
 **Tests**
 - Test the wiring and flag-to-interval mapping where practical, e.g. an `internal/app` or `run()` function that is testable.
 
 **Done when:** `make run` works against a fake or real Asana workspace.
+
+Validation note: automated wiring tests pass. The manual fake-server/signal smoke test was deferred at the project owner's request.
 
 ---
 

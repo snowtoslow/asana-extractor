@@ -1,9 +1,9 @@
 # Asana extractor
 
 A local Go CLI being built to export Asana users and projects to JSON.
-Milestone 6 adds scheduling and cancellation to the concurrent extraction run.
-The CLI currently exits successfully after configuration validation;
-CLI wiring will be implemented in Milestone 7.
+The CLI is wired end to end: configuration, Asana fetching, separate JSON
+outputs, scheduling, and graceful shutdown. Use `--once` for a single extraction
+or choose either supported scheduling interval.
 
 Requires Go 1.27.3. Make is optional.
 
@@ -42,13 +42,15 @@ go run ./cmd/extractor --interval=30s --once --output=data/custom
 ```
 
 - `--interval`: accepts exactly `5m` (default) or `30s`.
-- `--once`: records the request for a single run; execution comes later.
+- `--once`: performs one extraction, writes both files on success, and exits.
 - `--output`: a non-empty value overrides the `OUTPUT_PATH` directory for this invocation.
   The directory contains two separate files, `users.json` and `projects.json`.
 
 Unknown flags, invalid intervals, and positional arguments produce a usage
-error. The binary exits with code 2 for usage errors, 1 for configuration errors,
-and 0 for help or successful configuration validation.
+error. The binary exits with code 2 for usage errors, 1 for configuration,
+initialization, or single-run failures, and 0 for help, a successful single run,
+or normal scheduler shutdown. An interrupted single run returns 1 because the
+extraction did not complete successfully.
 
 ## Development
 
@@ -56,7 +58,9 @@ and 0 for help or successful configuration validation.
 make build  # bin/extractor
 make lint   # gofmt and go vet
 make test   # go test ./... -race
-make run    # configuration validation only at this milestone
+make run    # immediate extraction, then every 5 minutes
+make run ARGS="--interval=30s"
+make run ARGS="--once --output=data/custom"
 ```
 
 Tests use temporary files and synthetic credentials. They do not call Asana.
@@ -167,8 +171,8 @@ termination between renames can leave complete files from different runs.
 Compare `fetched_at` to detect a mixed pair. Forced termination can also leave
 unpublished temporary files. Each destination remains a complete old or new file.
 
-The storage layer accepts no authentication configuration. It is not yet wired
-into the CLI; `make run` still performs configuration validation only.
+The storage layer accepts no authentication configuration. The CLI passes the
+selected output directory to the writer after configuration loading.
 
 ## One extraction run
 
@@ -190,8 +194,8 @@ does not cancel a successful write.
 
 Start and completion logs include the run duration, user/project counts and
 success status. They omit configuration, entity records and raw error details.
-Errors are returned for the caller to handle and log. The CLI is not yet wired
-to run extractions or handle shutdown signals.
+Errors are returned for the caller to handle and log. The CLI logs a single-run
+failure and exits non-zero; the scheduler logs failed periodic runs and continues.
 
 ## Scheduler
 
@@ -218,6 +222,27 @@ their own; no forced shutdown timeout is imposed. Invalid ticker implementations
 return a scheduler error after canceling and joining any active run.
 
 Scheduler tests use channel barriers and `testing/synctest` to verify both modes,
-error recovery, tick skipping and cleanup without real sleeps. Signal handling
-and CLI startup remain reserved for Milestone 7; `make run` still validates
-configuration only.
+error recovery, tick skipping and cleanup without real sleeps.
+
+## CLI lifecycle
+
+After parsing flags and loading configuration, the CLI applies `--output`, logs
+configuration with the PAT masked, and constructs the Asana client, storage writer,
+extractor and (for periodic mode) scheduler. The Asana client is closed on exit.
+
+The process uses `signal.NotifyContext` for SIGINT (Ctrl+C) and SIGTERM. Periodic
+mode cancels the active extraction, waits for cleanup, stops the ticker and exits
+successfully. In `--once` mode, cancellation before completion is a failed run.
+
+You can also build and run the executable directly:
+
+```sh
+make build
+./bin/extractor --once
+./bin/extractor --interval=5m
+./bin/extractor --interval=30s --output=data/custom
+```
+
+Automated wiring tests cover single-run outcomes, both interval mappings,
+continued scheduling after a 401, output-directory overrides, masked startup
+logs, cancellation, and client cleanup using injected dependencies.
