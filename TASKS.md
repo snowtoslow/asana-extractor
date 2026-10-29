@@ -43,11 +43,11 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 2: Asana client, happy path
 
 **Tasks**
-- [ ] `internal/asana`: build a resty client with base URL, Bearer PAT, timeout and `Accept: application/json`.
-- [ ] Define `User` and `Project` structs with only the stored fields.
-- [ ] Implement `ListUsers(ctx)` and `ListProjects(ctx)` using `workspace`, `opt_fields` and `limit=100`.
-- [ ] Implement pagination by following `next_page.offset` until it is empty.
-- [ ] Define the small interface the extractor will consume (declared in the extractor package).
+- [x] `internal/asana`: build a resty client with base URL, Bearer PAT, timeout and `Accept: application/json`.
+- [x] Define `User` and `Project` structs with only the stored fields.
+- [x] Implement `ListUsers(ctx)` and `ListProjects(ctx)` using `workspace`, `opt_fields` and `limit=100`.
+- [x] Implement pagination by following `next_page.offset` until it is empty.
+- [x] Define the small interface the extractor will consume (declared in the extractor package).
 
 **Tests** (`httptest.Server`)
 - Auth header and query params are correct.
