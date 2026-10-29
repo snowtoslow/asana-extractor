@@ -117,11 +117,11 @@ Assumptions: one workspace, two separate output files (`users.json` and `project
 ## Milestone 6: Scheduler and graceful shutdown
 
 **Tasks**
-- [ ] Implement a scheduler that runs once immediately, then on each tick of the configured interval.
-- [ ] Inject a ticker/clock abstraction so tests never sleep.
-- [ ] Prevent overlapping runs: if a run is still going when a tick fires, skip that tick and log it.
-- [ ] A failed run is logged and the loop continues.
-- [ ] Stop cleanly when the context is cancelled, waiting for any in-flight run to finish or abort.
+- [x] Implement a scheduler that runs once immediately, then on each tick of the configured interval.
+- [x] Inject a ticker/clock abstraction so tests never sleep.
+- [x] Prevent overlapping runs: if a run is still going when a tick fires, skip that tick and log it.
+- [x] A failed run is logged and the loop continues.
+- [x] Stop cleanly when the context is cancelled, waiting for any in-flight run to finish or abort.
 
 **Tests**
 - Immediate first run and the correct number of runs for N ticks.
