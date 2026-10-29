@@ -28,7 +28,7 @@ func TestRun(t *testing.T) {
 		},
 		{name: "help without credentials", args: []string{"--help"}, wantMessage: "Usage of extractor"},
 		{
-			name: "valid configuration", args: []string{"--once", "--output=result.json"},
+			name: "valid configuration", args: []string{"--once", "--output=results"},
 			pat: "synthetic-test-pat", gid: "123", wantMessage: "configuration valid",
 		},
 	}
@@ -39,7 +39,7 @@ func TestRun(t *testing.T) {
 			t.Setenv("ASANA_PAT", tt.pat)
 			t.Setenv("ASANA_WORKSPACE_GID", tt.gid)
 			t.Setenv("ASANA_BASE_URL", "https://example.invalid")
-			t.Setenv("OUTPUT_PATH", "data/asana.json")
+			t.Setenv("OUTPUT_PATH", "data")
 			var output bytes.Buffer
 			if code := run(tt.args, &output); code != tt.wantCode {
 				t.Fatalf("exit code = %d, want %d; %s", code, tt.wantCode, output.String())
@@ -50,7 +50,7 @@ func TestRun(t *testing.T) {
 			if strings.Contains(output.String(), "synthetic-test-pat") {
 				t.Fatal("startup output exposes PAT")
 			}
-			if _, err := os.Stat(filepath.Join(dir, "result.json")); !os.IsNotExist(err) {
+			if _, err := os.Stat(filepath.Join(dir, "results")); !os.IsNotExist(err) {
 				t.Fatalf("milestone 1 must not write extraction output: %v", err)
 			}
 		})

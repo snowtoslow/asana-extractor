@@ -19,8 +19,8 @@ func TestParseFlags(t *testing.T) {
 		{name: "defaults", args: []string{}, want: options{interval: 5 * time.Minute}},
 		{name: "five minutes", args: []string{"--interval=5m"}, want: options{interval: 5 * time.Minute}},
 		{
-			name: "all flags", args: []string{"--interval=30s", "--once", "--output", "custom.json"},
-			want: options{interval: 30 * time.Second, isOnce: true, output: "custom.json"},
+			name: "all flags", args: []string{"--interval=30s", "--once", "--output", "custom-output"},
+			want: options{interval: 30 * time.Second, isOnce: true, output: "custom-output"},
 		},
 		{name: "explicit false", args: []string{"--once=false"}, want: options{interval: 5 * time.Minute}},
 	}

@@ -17,7 +17,7 @@ func TestLoad(t *testing.T) {
 	t.Setenv("ASANA_PAT", "test-only-pat")
 	t.Setenv("ASANA_WORKSPACE_GID", "test-workspace")
 	t.Setenv("ASANA_BASE_URL", "https://example.invalid/api")
-	t.Setenv("OUTPUT_PATH", "custom.json")
+	t.Setenv("OUTPUT_PATH", "custom-output")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +25,7 @@ func TestLoad(t *testing.T) {
 	if cfg.PAT != "test-only-pat" || cfg.WorkspaceGID != "test-workspace" {
 		t.Fatal("required environment values were not loaded")
 	}
-	if cfg.BaseURL != "https://example.invalid/api" || cfg.OutputPath != "custom.json" {
+	if cfg.BaseURL != "https://example.invalid/api" || cfg.OutputPath != "custom-output" {
 		t.Fatalf("optional environment values were not loaded: %v", cfg)
 	}
 }
@@ -47,27 +47,27 @@ func TestLoadSources(t *testing.T) {
 			name:    "missing file uses defaults",
 			env:     map[string]string{"ASANA_PAT": "test-pat", "ASANA_WORKSPACE_GID": "123"},
 			wantPAT: "test-pat", wantGID: "123",
-			wantURL: "https://app.asana.com/api/1.0", wantOutput: "data/asana.json",
+			wantURL: "https://app.asana.com/api/1.0", wantOutput: "data",
 		},
 		{
 			name:    "dotenv values",
 			hasFile: true,
 			file: "ASANA_PAT=file-pat\nASANA_WORKSPACE_GID=456\n" +
-				"ASANA_BASE_URL=https://example.invalid/file\nOUTPUT_PATH=file.json\n",
+				"ASANA_BASE_URL=https://example.invalid/file\nOUTPUT_PATH=file-output\n",
 			env: map[string]string{}, wantPAT: "file-pat", wantGID: "456",
-			wantURL: "https://example.invalid/file", wantOutput: "file.json",
+			wantURL: "https://example.invalid/file", wantOutput: "file-output",
 		},
 		{
 			name:    "environment overrides dotenv",
 			hasFile: true,
 			file: "ASANA_PAT=file-pat\nASANA_WORKSPACE_GID=456\n" +
-				"ASANA_BASE_URL=https://example.invalid/file\nOUTPUT_PATH=file.json\n",
+				"ASANA_BASE_URL=https://example.invalid/file\nOUTPUT_PATH=file-output\n",
 			env: map[string]string{
 				"ASANA_PAT": "env-pat", "ASANA_WORKSPACE_GID": "789",
-				"ASANA_BASE_URL": "https://example.invalid/env", "OUTPUT_PATH": "env.json",
+				"ASANA_BASE_URL": "https://example.invalid/env", "OUTPUT_PATH": "env-output",
 			},
 			wantPAT: "env-pat", wantGID: "789",
-			wantURL: "https://example.invalid/env", wantOutput: "env.json",
+			wantURL: "https://example.invalid/env", wantOutput: "env-output",
 		},
 		{
 			name: "missing pat", env: map[string]string{"ASANA_WORKSPACE_GID": "123"},

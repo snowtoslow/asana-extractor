@@ -1,7 +1,7 @@
 # TASKS.md: Milestones for the Asana Extractor
 
 Everything runs locally: no Docker, CI, or deployment tasks.
-Assumptions: one workspace, one output file overwritten each run, authentication via Personal Access Token (PAT) only.
+Assumptions: one workspace, two separate output files (`users.json` and `projects.json`) overwritten each run, authentication via Personal Access Token (PAT) only. `OUTPUT_PATH` and `--output` select the output directory (default `data/`).
 
 **Rules for every milestone:**
 - Read the relevant `.agents/skills/*/SKILL.md` files before starting, and state which skills you used when you finish.
@@ -28,7 +28,7 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 
 **Tasks**
 - [x] `internal/config`: load `.env` via godotenv (a missing file is fine, real env vars win).
-- [x] Read `ASANA_PAT`, `ASANA_WORKSPACE_GID`, `ASANA_BASE_URL` (with default) and `OUTPUT_PATH` (with default).
+- [x] Read `ASANA_PAT`, `ASANA_WORKSPACE_GID`, `ASANA_BASE_URL` (with default) and `OUTPUT_PATH` (output directory, default `data/`).
 - [x] Validate that the PAT and workspace GID are non-empty, and return clear errors that never include the PAT value.
 - [x] `cmd/extractor`: add `--interval` (only `5m` or `30s` accepted; anything else gives a usage error and a non-zero exit), `--once` and `--output`.
 - [x] Add a `Config` struct with a `String()` or `LogValue()` that masks the PAT.
@@ -81,33 +81,33 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 4: JSON storage
 
 **Tasks**
-- [ ] `internal/storage`: write `{ "fetched_at", "users": [], "projects": [] }` as indented JSON.
-- [ ] Write atomically: temp file in the same directory, `fsync`, then `os.Rename`.
-- [ ] Create the output directory if missing.
-- [ ] Always emit `[]` rather than `null` for empty lists.
-- [ ] Clean up the temp file on failure.
+- [x] `internal/storage`: write separate indented JSON files: `users.json` with `{ "fetched_at", "users": [] }` and `projects.json` with `{ "fetched_at", "projects": [] }`, sharing one timestamp.
+- [x] Stage, `fsync` and close both temporary files in the output directory before publishing either file. Atomically rename each, users first, projects second; the pair is not transactional.
+- [x] Create the output directory if missing.
+- [x] Always emit `[]` rather than `null` for empty lists.
+- [x] Clean up all unpublished temporary files on failure.
 
 **Tests**
-- Content and shape of the file.
+- Content, shape and entity separation of both files.
 - Overwrite behaviour.
-- A failed write leaves the previous file intact.
+- A staging failure leaves both previous files intact; a publication failure preserves each file's completeness and may leave different timestamps.
 - Directory creation and empty-list handling.
 
-**Done when:** the output file is never partially written, even if the process is interrupted mid-write.
+**Done when:** neither output file is ever partially written, even if the process is interrupted mid-write. A failure or interruption between renames may leave different timestamps.
 
 ---
 
 ## Milestone 5: Extraction run
 
 **Tasks**
-- [ ] `internal/extractor`: `Run(ctx)` fetches users and projects concurrently (`errgroup`) and then writes once.
-- [ ] If either fetch fails, write nothing, keep the previous file and return a wrapped error.
+- [ ] `internal/extractor`: `Run(ctx)` fetches users and projects concurrently (`errgroup`) and then calls the writer once to publish the two separate files.
+- [ ] If either fetch fails, write nothing, keep both previous files and return a wrapped error.
 - [ ] Log run start, duration and counts using `log/slog`.
 - [ ] Inject the client, the writer and a clock via small interfaces.
 
 **Tests** (with fakes)
-- Success writes both lists.
-- A users failure or a projects failure leaves the previous file untouched.
+- Success writes each list to its own file with the same timestamp.
+- A users failure or a projects failure leaves both previous files untouched.
 - Counts are logged and the PAT is never logged.
 
 **Done when:** a single run is correct and side-effect-safe.
@@ -152,7 +152,7 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 8: Test hardening
 
 **Tasks**
-- [ ] Add an end-to-end test using `httptest.Server` as fake Asana: the full flow from config to a real JSON file in `t.TempDir()`.
+- [ ] Add an end-to-end test using `httptest.Server` as fake Asana: the full flow from config to separate real `users.json` and `projects.json` files in `t.TempDir()`.
 - [ ] Cover edge cases: empty workspace, large multi-page data, malformed JSON from the API, and a slow server hitting the timeout.
 - [ ] Confirm that no test uses the real network or real clock sleeps.
 - [ ] Review coverage and fill gaps (`go test ./... -race -cover`).
@@ -166,9 +166,9 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 
 **Tasks**
 - [ ] Write the README: purpose, requirements, how to generate a PAT in the Asana developer console, `.env` setup, how to find the workspace GID, and how to run both modes (`--interval=5m` and `--interval=30s`) plus `--once`.
-- [ ] Document the output JSON format with a sample, and how to run the tests.
+- [ ] Document both output JSON formats with samples, their per-file atomicity, and how to run the tests.
 - [ ] Verify `.env.example` is current and contains no real secrets.
-- [ ] Manual smoke test (done by the project owner with a real PAT): `--once`, then 30s mode for a few cycles, then Ctrl+C to confirm graceful shutdown and a valid JSON file.
+- [ ] Manual smoke test (done by the project owner with a real PAT): `--once`, then 30s mode for a few cycles, then Ctrl+C to confirm graceful shutdown and valid separate `users.json` and `projects.json` files.
 - [ ] Final cleanup: remove dead code, TODOs and unused dependencies (`go mod tidy`).
 
 **Done when:** a new developer can clone the repo, follow the README, and get a working extraction in under 10 minutes.

@@ -1,2 +1,2 @@
-// Package storage will write extraction results atomically as JSON.
+// Package storage writes extraction results atomically as JSON.
 package storage
