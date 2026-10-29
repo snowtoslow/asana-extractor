@@ -1,2 +1,16 @@
 .idea
 .agents/skills
+.env
+skills-lock.json
+
+# Local output and binaries
+/data/
+/bin/
+/extractor
+/asana-extractor
+*.exe
+*.test
+
+# Private key material
+*.key
+*.pem
