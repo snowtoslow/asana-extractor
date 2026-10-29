@@ -10,7 +10,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// TODO: review more and fix if required
 // Config contains the environment settings for the extractor.
 type Config struct {
 	PAT          string `json:"-"`

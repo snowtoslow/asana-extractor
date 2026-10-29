@@ -1,147 +1,127 @@
 # Asana extractor
 
-A local Go CLI being built to export Asana users and projects to JSON.
-The CLI is wired end to end: configuration, Asana fetching, separate JSON
-outputs, scheduling, and graceful shutdown. Use `--once` for a single extraction
-or choose either supported scheduling interval.
+A local Go CLI that exports users and projects from one Asana workspace to
+`users.json` and `projects.json`. It runs once immediately, then every five
+minutes or every 30 seconds, or performs a single extraction with `--once`.
+Authentication uses a Personal Access Token (PAT).
 
-Requires Go 1.27.3. Make is optional.
+## Requirements
 
-## Local configuration
+- Go 1.27.3, as specified in `go.mod`.
+- An Asana account with access to the workspace you want to export and permission
+  to create a PAT.
+- Git to clone the repository; Make is optional.
+- A C compiler for Go's race detector when running the tests.
 
-Generate a Personal Access Token (PAT) in the Asana developer console under
-**My apps → Personal access tokens**. Copy `.env.example` to `.env` and replace
-the PAT and workspace GID placeholders locally:
+## Setup
 
 ```sh
+git clone https://github.com/snowtoslow/asana-extractor.git
+cd asana-extractor
 cp .env.example .env
 ```
 
-Keep the real PAT only in your local `.env` or environment. `.env` is ignored by
-git. Never commit or share it.
+### Generate a PAT
+
+1. Sign in to the [Asana developer console](https://app.asana.com/0/my-apps)
+   (**My apps → Personal access tokens**). You can also reach it through your
+   profile → My Settings → Apps → Manage Developer Apps.
+2. Select **Create new token**, give it a name such as `local extractor`, accept
+   the terms if prompted, and create it.
+3. Copy the token immediately; it is displayed only once. Put it in your local
+   `.env` as the value of `ASANA_PAT`.
+
+See Asana's [PAT documentation](https://developers.asana.com/docs/personal-access-token).
+Keep the PAT private: never commit it, share it, or paste it into logs. `.env`
+is ignored by Git. The CLI sends `Authorization: Bearer <PAT>` on API requests
+and masks the PAT in configuration logs.
+
+### Find the workspace GID
+
+While signed in to Asana, open the
+[workspaces endpoint](https://app.asana.com/api/1.0/workspaces) in your browser.
+In the returned `data` array, find the workspace by `name` and copy its `gid`
+into `ASANA_WORKSPACE_GID`. Use the workspace's GID, not a project or user GID.
+This is the method described in Asana's
+[quick start](https://developers.asana.com/docs/quick-start).
+
+### Configure `.env`
+
+Replace the two placeholders in the copied file locally:
+
+```dotenv
+ASANA_PAT=replace-with-your-personal-access-token
+ASANA_WORKSPACE_GID=replace-with-your-workspace-gid
+ASANA_BASE_URL=https://app.asana.com/api/1.0
+OUTPUT_PATH=data
+```
 
 | Variable | Required | Default when absent |
 | --- | --- | --- |
 | `ASANA_PAT` | Yes | None |
 | `ASANA_WORKSPACE_GID` | Yes | None |
 | `ASANA_BASE_URL` | No | `https://app.asana.com/api/1.0` |
-| `OUTPUT_PATH` (directory) | No | `data/` |
+| `OUTPUT_PATH` | No | `data/` (output directory) |
 
-The CLI reads `.env` from its current directory if present. Existing environment
-variables take precedence, including explicitly empty values. Empty or
-whitespace-only PAT and workspace GID values are rejected. Malformed `.env`
-files fail with a message that omits file contents. Configuration diagnostics
-mask the PAT.
+The CLI loads `.env` from the current working directory. Existing environment
+variables take precedence, including explicitly empty values. Missing `.env`
+is fine; malformed syntax fails startup without printing its contents. Missing,
+empty, or whitespace-only PAT and workspace GID values fail startup.
+Defaults apply when optional variables are absent, not when explicitly empty.
+Relative output paths are resolved from the current working directory.
 
-## Flags and validation
-
-```sh
-go run ./cmd/extractor --help
-go run ./cmd/extractor --interval=5m
-go run ./cmd/extractor --interval=30s --once --output=data/custom
-```
-
-- `--interval`: accepts exactly `5m` (default) or `30s`.
-- `--once`: performs one extraction, writes both files on success, and exits.
-- `--output`: a non-empty value overrides the `OUTPUT_PATH` directory for this invocation.
-  The directory contains two separate files, `users.json` and `projects.json`.
-
-Unknown flags, invalid intervals, and positional arguments produce a usage
-error. The binary exits with code 2 for usage errors, 1 for configuration,
-initialization, or single-run failures, and 0 for help, a successful single run,
-or normal scheduler shutdown. An interrupted single run returns 1 because the
-extraction did not complete successfully.
-
-## Development
+## Run locally
 
 ```sh
-make build  # bin/extractor
-make lint   # gofmt and go vet
-make test   # unit + integration tests with race detection
-make run    # immediate extraction, then every 5 minutes
-make run ARGS="--interval=30s"
-make run ARGS="--once --output=data/custom"
+go build -o bin/extractor ./cmd/extractor
+./bin/extractor --once
+./bin/extractor --interval=5m
+./bin/extractor --interval=30s
+./bin/extractor --once --output=data/custom
 ```
 
-Tests use temporary files and synthetic credentials. They do not call Asana.
-Retry timing tests use an in-memory `httptest.Server` and `testing/synctest`:
-backoff and `Retry-After` delays advance synthetic time without real sleeps.
+Run the periodic commands individually; each keeps running until interrupted.
+You can also use `go run ./cmd/extractor` with the same flags.
 
-## Asana client
-
-`internal/asana` provides `ListUsers(ctx)` and `ListProjects(ctx)` for one
-workspace, using the configured base URL and a Bearer PAT on each request.
-It stores only these fields:
-
-| Resource | Fields |
+| Flag | Behavior |
 | --- | --- |
-| User | `gid`, `name`, `email` |
-| Project | `gid`, `name`, `archived` |
+| `--interval` | Exactly `5m` (default) or `30s`; validated even with `--once`. |
+| `--once` | One extraction, then exit. |
+| `--output` | A non-empty value overrides the `OUTPUT_PATH` directory. |
+| `--help` | Show usage without requiring configuration. |
 
-The client requests `limit=100`, the workspace GID, and the stored fields via
-`opt_fields`. It follows `next_page.offset` until absent or empty, keeping the
-original endpoint and base URL. See Asana's
-[users endpoint](https://developers.asana.com/go/reference/getusers) and
-[projects endpoint](https://developers.asana.com/reference/getprojects).
+Periodic mode starts immediately. Runs never overlap; ticks during an active
+run are skipped. Failed runs are logged and later ticks continue. A 401 logs
+that the PAT is invalid or revoked and is not retried within the run; update
+the PAT and restart the process. Other 4xx responses except 429 are not retried.
+Network errors, 429, and 5xx responses allow up to three retries per page with
+backoff. Valid `Retry-After` headers on 429/503 are respected. The request timeout
+is 30 seconds. Users and projects are fetched concurrently, with `limit=100`,
+`opt_fields`, and pagination through every `next_page.offset`.
 
-Construct the client with a validated `config.Config` and a request timeout.
-The caller is responsible for configuration validation before initialization.
-A zero timeout selects 30 seconds; negative timeouts are rejected.
-Caller cancellation propagates to each request. Redirects are not followed.
-Call `Close()` when finished. Timeout configuration is currently a Go constructor parameter,
-not a new environment variable or CLI flag.
+Logs go to stderr using `log/slog`. Ctrl+C (SIGINT) or SIGTERM cancels active
+work and waits for cleanup. Normal periodic shutdown exits 0. The binary exits
+2 for usage errors and 1 for configuration, initialization, or single-run
+failures (including an interrupted `--once`); successful `--once` exits 0.
+`go run` may report a failing binary's exit status through its own wrapper.
 
-### Retries and errors
+## Output
 
-Each page request allows three retries after the initial attempt. Network
-failures, HTTP 429, and all HTTP 5xx statuses are retryable. Other HTTP 4xx
-statuses are returned immediately. Cancellation stops requests and retry waits.
-
-Backoff defaults to 1s, 2s, 4s, with a 30s cap if more retries are configured.
-For 429 and 503, a valid `Retry-After` (seconds or HTTP date) takes precedence,
-even when longer than the cap. Missing or invalid headers use normal backoff.
-
-Optional constructor settings keep existing calls valid:
-
-```go
-client, err := asana.New(cfg, 0,
-    asana.WithRetries(3, time.Second, 30*time.Second),
-    asana.WithLogger(logger),
-)
-```
-
-`WithRetries(0, 0, 0)` disables retries; positive counts with zero waits permit
-immediate retries. These are Go constructor options, not new env vars or flags.
-
-Unsuccessful responses return a wrapped `*asana.HTTPError`; use `errors.As` to
-inspect `StatusCode`. A 401 error states that the PAT is invalid or revoked.
-The client returns errors for its caller to log rather than logging them twice.
-Scheduler continuation is implemented in a later milestone.
-
-Response bodies and raw transport/decoder errors are omitted from diagnostics
-because they can echo credentials. Known causes still match with `errors.Is`,
-including cancellation and deadlines. Raw causes are not exposed by `Unwrap`.
-Resty wire/debug dumps are suppressed, and its warnings/errors use fixed
-structured messages. No PAT is included in those diagnostics.
-
-## JSON storage
-
-**Users and projects are stored in two different files:** `users.json` and
-`projects.json`. `OUTPUT_PATH` and `--output` select their directory, defaulting
-to `data/`. An existing single-file setting such as `data/asana.json` must be
-changed to an output directory such as `data/`; there is no automatic migration
-or deletion of old output files.
-
-`storage.New(directory).Write(ctx, snapshot)` prepares both indented JSON
-documents. The caller supplies `FetchedAt`, which is serialized in UTC using
-RFC 3339 with fractional seconds when present. Both files share that timestamp.
+The selected output directory contains two separate, indented JSON files.
+Example values below are fictional.
 
 `users.json`:
 
 ```json
 {
   "fetched_at": "2026-10-29T14:30:00Z",
-  "users": []
+  "users": [
+    {
+      "gid": "1234567890",
+      "name": "Example User",
+      "email": "user@example.com"
+    }
+  ]
 }
 ```
 
@@ -150,124 +130,70 @@ RFC 3339 with fractional seconds when present. Both files share that timestamp.
 ```json
 {
   "fetched_at": "2026-10-29T14:30:00Z",
-  "projects": []
+  "projects": [
+    {
+      "gid": "9876543210",
+      "name": "Example Project",
+      "archived": false
+    }
+  ]
 }
 ```
 
-Each document contains only its own entity list and timestamp. Nil and empty
-lists produce `[]`. Missing directories are created with owner-only permissions
-(`0700`); files use owner-only permissions (`0600`). Existing directory
-permissions are left as configured.
+Empty lists are `[]`, never `null`. Both files from one extraction share a UTC
+`fetched_at` timestamp recorded after fetching completes, in RFC 3339 format
+with fractional seconds when present. Each run replaces previous output.
+Missing output directories are created with `0700` permissions; new files use
+`0600`. Existing directory permissions remain unchanged.
 
-Both unique temporary files are written, synced and closed in the output
-directory before publication starts. The writer then atomically replaces
-`users.json`, followed by `projects.json`, using `os.Rename` for each. Encoding
-or staging failures preserve both previous files. All unpublished temporary
-files are removed on returned failures; cleanup errors are reported too.
-Cancellation is checked before preparation and before each publication.
+Both temporary files are prepared, synced, and closed in the output directory
+before either is published. Each rename is atomic: `users.json` is published
+first, then `projects.json`. API or staging failures leave both previous files
+untouched. **The pair is not an atomic transaction:** a publication failure or
+interruption between renames can leave complete files with different timestamps.
+Compare `fetched_at` to detect this. Unpublished temporary files are cleaned up
+on returned failures; forced termination may leave temporary files behind.
 
-**Atomicity applies to each file, not the pair.** A failure or forced process
-termination between renames can leave complete files from different runs.
-Compare `fetched_at` to detect a mixed pair. Forced termination can also leave
-unpublished temporary files. Each destination remains a complete old or new file.
-
-The storage layer accepts no authentication configuration. The CLI passes the
-selected output directory to the writer after configuration loading.
-
-## One extraction run
-
-`internal/extractor` provides `New(client, writer, clock, logger)` and `Run(ctx)`.
-The client, writer and clock use small interfaces declared in the extractor
-package; the logger is an injected `*slog.Logger`. The clock implements
-`Now() time.Time`, making timestamps and durations deterministic in tests.
-
-Each run fetches users and projects concurrently with `errgroup.WithContext`
-from `golang.org/x/sync`. A failed fetch cancels the sibling request, waits for
-both fetches to exit and returns a wrapped error without calling the writer.
-Both previous output files therefore remain untouched after API failures.
-
-After both fetches succeed, the extractor records fetch completion in UTC and
-passes both lists and that timestamp to the writer in one call. Storage retains
-the documented per-file atomicity; publication of the pair is not transactional.
-The writer receives the original run context, so the errgroup's normal shutdown
-does not cancel a successful write.
-
-Start and completion logs include the run duration, user/project counts and
-success status. They omit configuration, entity records and raw error details.
-Errors are returned for the caller to handle and log. The CLI logs a single-run
-failure and exits non-zero; the scheduler logs failed periodic runs and continues.
-
-## Scheduler
-
-`extractor.NewScheduler(runner, tickerFactory, interval, logger)` creates a
-scheduler for exactly `5*time.Minute` or `30*time.Second`. `*Extractor` implements
-the `Runner` interface. `extractor.RealClock{}` implements both the extraction
-clock and the scheduler's `TickerFactory`; tests supply manual tickers.
-
-`Scheduler.Run(ctx)` starts one extraction immediately and then starts a new
-one for each idle tick. Ticks received while a run is active are skipped and
-logged. Queued ticks from an active run are discarded at completion, so the
-scheduler does not replay missed work. Runs never overlap within a scheduling
-loop. Invoke one loop at a time per scheduler.
-
-A run error is logged and the loop continues. A typed HTTP 401 produces a clear
-invalid-or-revoked-PAT message. Other typed HTTP errors log their status code;
-unknown errors produce a fixed message so arbitrary error text cannot expose
-credentials.
-
-Canceling the context prevents further starts and cancels the active run.
-The scheduler waits for that run to finish or abort, stops its ticker, and
-returns nil for normal shutdown. Runners must honor cancellation or finish on
-their own; no forced shutdown timeout is imposed. Invalid ticker implementations
-return a scheduler error after canceling and joining any active run.
-
-Scheduler tests use channel barriers and `testing/synctest` to verify both modes,
-error recovery, tick skipping and cleanup without real sleeps.
-
-## CLI lifecycle
-
-After parsing flags and loading configuration, the CLI applies `--output`, logs
-configuration with the PAT masked, and constructs the Asana client, storage writer,
-extractor and (for periodic mode) scheduler. The Asana client is closed on exit.
-
-The process uses `signal.NotifyContext` for SIGINT (Ctrl+C) and SIGTERM. Periodic
-mode cancels the active extraction, waits for cleanup, stops the ticker and exits
-successfully. In `--once` mode, cancellation before completion is a failed run.
-
-You can also build and run the executable directly:
+## Development and tests
 
 ```sh
-make build
-./bin/extractor --once
-./bin/extractor --interval=5m
-./bin/extractor --interval=30s --output=data/custom
+gofmt -l .
+go vet ./...
+go build ./...
+go test ./... -race
+go test ./... -race -tags=integration
 ```
 
-Automated wiring tests cover single-run outcomes, both interval mappings,
-continued scheduling after a 401, output-directory overrides, masked startup
-logs, cancellation, and client cleanup using injected dependencies.
+The last command includes end-to-end tests behind the `integration` build tag.
+Tests use synthetic credentials, temporary directories, in-memory `httptest`
+transports, manual tickers, and `testing/synctest`. They do not contact Asana,
+read the repository's `.env`, or wait for real retry/scheduler delays.
 
-## Test hardening
-
-`make test` runs unit and integration tests with race detection. Integration
-cases use the `integration` build tag:
+Optional Make targets:
 
 ```sh
-go test ./... -race -cover
-go test ./... -race -tags=integration -cover -count=5
+make build                         # bin/extractor
+make lint                          # gofmt (writes files) and go vet
+make test                          # unit + integration tests with race detection
+make run ARGS="--interval=30s"      # run locally with your configured PAT
 ```
 
-All HTTP fixtures use in-memory `httptest.NewTestServer` transports; tests do
-not open network sockets or contact Asana. Timed behavior uses manual tickers
-or `testing/synctest`, with no real clock sleeps. Environment-loading tests use
-isolated temporary directories and synthetic tokens, never the repository's `.env`.
+Code lives in `cmd/extractor` (CLI and wiring), `internal/config`,
+`internal/asana`, `internal/storage`, and `internal/extractor` (runs and scheduler).
 
-The end-to-end cases cover `.env` loading and overrides, separate output files,
-empty data, 1,250 records per entity across 13 pages, malformed later pages,
-401 responses, request timeouts, and preservation of previous files after errors.
-The Asana client accepts `WithTransport(http.RoundTripper)` for isolated tests
-without changing its default transport or configuration arguments.
+## Manual smoke test
 
-The Milestone 8 five-pass race/coverage run passed with 93.8% total statement
-coverage. The thin OS-signal/exit wrapper remains outside in-process coverage;
-context cancellation and scheduler cleanup are covered by deterministic tests.
+To be performed by the project owner with a real PAT; not yet verified:
+
+- [ ] Configure `.env`, build the binary, and run `./bin/extractor --once`.
+  Confirm exit code 0 and valid separate `data/users.json` and
+  `data/projects.json` files with matching `fetched_at` timestamps.
+- [ ] Run `./bin/extractor --interval=30s` for a few cycles. Confirm an immediate
+  extraction, successful later runs, and updated timestamps in both files.
+- [ ] Press Ctrl+C. Confirm the process exits cleanly, logs `extractor stopped`,
+  and both files remain valid JSON. For example, if Python 3 is installed:
+
+  ```sh
+  python3 -m json.tool data/users.json > /dev/null
+  python3 -m json.tool data/projects.json > /dev/null
+  ```
