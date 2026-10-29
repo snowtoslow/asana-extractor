@@ -154,11 +154,11 @@ Validation note: automated wiring tests pass. The manual fake-server/signal smok
 ## Milestone 8: Test hardening
 
 **Tasks**
-- [ ] Add an end-to-end test using `httptest.Server` as fake Asana: the full flow from config to separate real `users.json` and `projects.json` files in `t.TempDir()`.
-- [ ] Cover edge cases: empty workspace, large multi-page data, malformed JSON from the API, and a slow server hitting the timeout.
-- [ ] Confirm that no test uses the real network or real clock sleeps.
-- [ ] Review coverage and fill gaps (`go test ./... -race -cover`).
-- [ ] Run the tests several times (`-count=5`) to catch flakiness.
+- [x] Add an end-to-end test using `httptest.Server` as fake Asana: the full flow from config to separate real `users.json` and `projects.json` files in `t.TempDir()`.
+- [x] Cover edge cases: empty workspace, large multi-page data, malformed JSON from the API, and a slow server hitting the timeout.
+- [x] Confirm that no test uses the real network or real clock sleeps.
+- [x] Review coverage and fill gaps (`go test ./... -race -cover`).
+- [x] Run the tests several times (`-count=5`) to catch flakiness.
 
 **Done when:** the suite is deterministic, fast, and covers every behavior listed in AGENTS.md.
 

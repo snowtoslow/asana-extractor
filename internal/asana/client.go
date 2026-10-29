@@ -44,6 +44,7 @@ func New(cfg config.Config, timeout time.Duration, options ...Option) (*Client, 
 		}
 	}
 	transportClient := new(http.Client)
+	transportClient.Transport = settings.transport
 	// Keep the PAT on the configured endpoint; pagination uses offsets only.
 	transportClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
