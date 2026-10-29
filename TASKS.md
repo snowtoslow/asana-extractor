@@ -27,11 +27,11 @@ Assumptions: one workspace, one output file overwritten each run, authentication
 ## Milestone 1: Configuration and CLI flags
 
 **Tasks**
-- [ ] `internal/config`: load `.env` via godotenv (a missing file is fine, real env vars win).
-- [ ] Read `ASANA_PAT`, `ASANA_WORKSPACE_GID`, `ASANA_BASE_URL` (with default) and `OUTPUT_PATH` (with default).
-- [ ] Validate that the PAT and workspace GID are non-empty, and return clear errors that never include the PAT value.
-- [ ] `cmd/extractor`: add `--interval` (only `5m` or `30s` accepted; anything else gives a usage error and a non-zero exit), `--once` and `--output`.
-- [ ] Add a `Config` struct with a `String()` or `LogValue()` that masks the PAT.
+- [x] `internal/config`: load `.env` via godotenv (a missing file is fine, real env vars win).
+- [x] Read `ASANA_PAT`, `ASANA_WORKSPACE_GID`, `ASANA_BASE_URL` (with default) and `OUTPUT_PATH` (with default).
+- [x] Validate that the PAT and workspace GID are non-empty, and return clear errors that never include the PAT value.
+- [x] `cmd/extractor`: add `--interval` (only `5m` or `30s` accepted; anything else gives a usage error and a non-zero exit), `--once` and `--output`.
+- [x] Add a `Config` struct with a `String()` or `LogValue()` that masks the PAT.
 
 **Tests**
 - Defaults, env override, `.env` loading, missing PAT, invalid interval, and PAT masking.

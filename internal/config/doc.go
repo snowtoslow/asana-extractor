@@ -1,2 +1,2 @@
-// Package config will load and validate extractor configuration.
+// Package config loads and validates extractor configuration.
 package config
