@@ -167,10 +167,10 @@ Validation note: automated wiring tests pass. The manual fake-server/signal smok
 ## Milestone 9: Docs and manual local verification
 
 **Tasks**
-- [ ] Write the README: purpose, requirements, how to generate a PAT in the Asana developer console, `.env` setup, how to find the workspace GID, and how to run both modes (`--interval=5m` and `--interval=30s`) plus `--once`.
-- [ ] Document both output JSON formats with samples, their per-file atomicity, and how to run the tests.
-- [ ] Verify `.env.example` is current and contains no real secrets.
+- [x] Write the README: purpose, requirements, how to generate a PAT in the Asana developer console, `.env` setup, how to find the workspace GID, and how to run both modes (`--interval=5m` and `--interval=30s`) plus `--once`.
+- [x] Document both output JSON formats with samples, their per-file atomicity, and how to run the tests.
+- [x] Verify `.env.example` is current and contains no real secrets.
 - [ ] Manual smoke test (done by the project owner with a real PAT): `--once`, then 30s mode for a few cycles, then Ctrl+C to confirm graceful shutdown and valid separate `users.json` and `projects.json` files.
-- [ ] Final cleanup: remove dead code, TODOs and unused dependencies (`go mod tidy`).
+- [x] Final cleanup: remove dead code, TODOs and unused dependencies (`go mod tidy`).
 
 **Done when:** a new developer can clone the repo, follow the README, and get a working extraction in under 10 minutes.
